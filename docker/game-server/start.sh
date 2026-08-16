@@ -52,10 +52,18 @@ su - gamer -c "pactl load-module module-null-sink sink_name=virtual_speaker sink
 su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
 
 # Stream the virtual sink out over HTTP as MP3 so the browser can play it
-# alongside the VNC video via a plain <audio> tag.
+# alongside the VNC video via a plain <audio> tag. ffmpeg's built-in HTTP
+# listener only ever serves a single connection and then exits - without
+# a restart loop, the very first "Enable Audio" click (or even a stray
+# connection attempt) would silently kill the stream for everyone after.
 echo "Starting audio stream on port 8000..."
-su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" \
-    > /tmp/ffmpeg-audio.log 2>&1 &
+(
+    while true; do
+        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio"
+        echo "Audio stream listener exited, restarting..."
+        sleep 1
+    done
+) &
 
 # x11vnc now stays up for the container's whole lifetime (-forever) instead
 # of exiting after the first disconnect. StarCraft itself - not the whole
