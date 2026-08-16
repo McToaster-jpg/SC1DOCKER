@@ -9,6 +9,9 @@ rm -f /tmp/.X11-unix/X99 2>/dev/null || true
 pkill -9 Xvfb 2>/dev/null || true
 pkill -9 x11vnc 2>/dev/null || true
 pkill -9 websockify 2>/dev/null || true
+pkill -9 pulseaudio 2>/dev/null || true
+pkill -9 ffmpeg 2>/dev/null || true
+rm -rf /home/gamer/.config/pulse /run/user/1000/pulse 2>/dev/null || true
 sleep 1
 
 # Ensure X11 socket directory exists with correct permissions
@@ -17,7 +20,7 @@ chmod 1777 /tmp/.X11-unix
 
 # Render the themed noVNC landing page for this race
 echo "Rendering ${RACE_NAME:-TERRAN} branded page..."
-envsubst '${RACE_NAME} ${RACE_COLOR}' \
+envsubst '${RACE_NAME} ${RACE_COLOR} ${AUDIO_PORT}' \
     < /usr/share/novnc/index.html.template \
     > /usr/share/novnc/index.html
 
@@ -37,6 +40,22 @@ sleep 3
 echo "Starting noVNC..."
 websockify -D --web=/usr/share/novnc/ 6080 localhost:5900 2>&1 || true
 sleep 1
+
+# Start PulseAudio as the gamer user with a virtual sink. There's no real
+# audio hardware in the container, so without this Wine has nowhere to
+# render sound and just drops it (the ALSA "cannot find card 0" errors).
+echo "Starting PulseAudio..."
+su - gamer -c "pulseaudio --start --exit-idle-time=-1 --disallow-exit" 2>&1 || true
+sleep 2
+su - gamer -c "pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description=VirtualSpeaker" 2>&1 || true
+su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
+
+# Stream the virtual sink out over HTTP as MP3 so the browser can play it
+# alongside the VNC video via a plain <audio> tag.
+echo "Starting audio stream on port 8000..."
+su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" \
+    > /tmp/ffmpeg-audio.log 2>&1 &
+FFMPEG_PID=$!
 
 # Find the SC1 executable
 echo "Starting StarCraft 1..."
@@ -74,6 +93,7 @@ echo "noVNC available at http://localhost:6080"
 wait $X11VNC_PID
 
 echo "Player disconnected - recycling container for a fresh session..."
-kill -9 "$SC_PID" "$XVFB_PID" 2>/dev/null || true
+kill -9 "$SC_PID" "$XVFB_PID" "$FFMPEG_PID" 2>/dev/null || true
 pkill -9 websockify 2>/dev/null || true
+pkill -9 pulseaudio 2>/dev/null || true
 exit 0

@@ -15,6 +15,8 @@ RUN dpkg --add-architecture i386 && \
     novnc \
     websockify \
     gettext-base \
+    pulseaudio \
+    ffmpeg \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -48,9 +50,10 @@ RUN chown -R gamer:gamer /home/gamer/games/SC1
 COPY docker/game-server/start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Expose VNC port
+# Expose VNC, noVNC, and audio stream ports
 EXPOSE 5900
 EXPOSE 6080
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

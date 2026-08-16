@@ -91,6 +91,28 @@
     box-shadow: 0 0 10px ${RACE_COLOR}66;
   }
 
+  .audio-btn {
+    background: transparent;
+    color: ${RACE_COLOR};
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 1px;
+    border: 1px solid ${RACE_COLOR}66;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .audio-btn:hover {
+    background: ${RACE_COLOR}22;
+    box-shadow: 0 0 10px ${RACE_COLOR}66;
+  }
+
+  .audio-btn.on {
+    background: ${RACE_COLOR}33;
+  }
+
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
@@ -132,6 +154,7 @@
     <div class="status">
       <div class="dot"></div>
       <span class="label">LIVE</span>
+      <button class="audio-btn" id="audioBtn" onclick="toggleAudio()">🔇 ENABLE AUDIO</button>
       <a class="back-link" href="#" onclick="window.close(); return false;">✕ DISCONNECT</a>
     </div>
   </div>
@@ -140,5 +163,32 @@
       <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2"></iframe>
     </div>
   </div>
+  <audio id="gameAudio" preload="none"></audio>
+  <script>
+    var audioEl = document.getElementById('gameAudio');
+    var audioBtn = document.getElementById('audioBtn');
+    var audioOn = false;
+
+    function toggleAudio() {
+      if (audioOn) {
+        audioEl.pause();
+        audioEl.removeAttribute('src');
+        audioEl.load();
+        audioBtn.textContent = '🔇 ENABLE AUDIO';
+        audioBtn.classList.remove('on');
+        audioOn = false;
+      } else {
+        // Cache-bust so each connect grabs a fresh live stream instead of
+        // reusing a stale buffered one from a previous session.
+        audioEl.src = 'http://' + window.location.hostname + ':${AUDIO_PORT}/audio?t=' + Date.now();
+        audioEl.play().catch(function (err) {
+          console.warn('Audio playback failed:', err);
+        });
+        audioBtn.textContent = '🔊 AUDIO ON';
+        audioBtn.classList.add('on');
+        audioOn = true;
+      }
+    }
+  </script>
 </body>
 </html>
