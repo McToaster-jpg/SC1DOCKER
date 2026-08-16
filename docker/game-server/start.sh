@@ -6,11 +6,11 @@ set -e
 echo "Cleaning up stale X11 locks and processes..."
 rm -f /tmp/.X99-lock 2>/dev/null || true
 rm -f /tmp/.X11-unix/X99 2>/dev/null || true
+rm -f /tmp/session-ended 2>/dev/null || true
 pkill -9 Xvfb 2>/dev/null || true
-pkill -9 x11vnc 2>/dev/null || true
-pkill -9 websockify 2>/dev/null || true
+pkill -9 selkies 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
-pkill -9 ffmpeg 2>/dev/null || true
+pkill -9 wine 2>/dev/null || true
 rm -rf /home/gamer/.config/pulse /run/user/1000/pulse 2>/dev/null || true
 sleep 1
 
@@ -18,44 +18,31 @@ sleep 1
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
-# Render the themed noVNC landing page for this race
-echo "Rendering ${RACE_NAME:-TERRAN} branded page..."
-envsubst '${RACE_NAME} ${RACE_COLOR} ${AUDIO_PORT}' \
-    < /usr/share/novnc/index.html.template \
-    > /usr/share/novnc/index.html
-
-RACE_LOWER=$(echo "${RACE_NAME:-TERRAN}" | tr '[:upper:]' '[:lower:]')
-cp "/usr/share/novnc/emblems/${RACE_LOWER}.svg" /usr/share/novnc/emblem.svg
+# Hook script Selkies runs once the last connected client disconnects.
+# It just drops a sentinel file - our own foreground loop below watches
+# for it and recycles the whole container so the next player gets a
+# completely fresh session.
+cat > /usr/local/bin/on-disconnect.sh << 'EOF'
+#!/bin/bash
+touch /tmp/session-ended
+EOF
+chmod +x /usr/local/bin/on-disconnect.sh
 
 # Start Xvfb (virtual X server) as root.
-# Keep the virtual screen at 1024x768 - StarCraft's DirectDraw fullscreen
-# switch fails on an Xvfb screen sized exactly to its own 640x480 target,
-# which produced a black canvas. Instead we crop the VNC capture below.
 echo "Starting Xvfb on display :99..."
 Xvfb :99 -screen 0 1024x768x24 -ac &
 XVFB_PID=$!
 sleep 3
 
-# Start noVNC web interface (proxies to x11vnc once it's listening)
-echo "Starting noVNC..."
-websockify -D --web=/usr/share/novnc/ 6080 localhost:5900 2>&1 || true
-sleep 1
-
 # Start PulseAudio as the gamer user with a virtual sink. There's no real
 # audio hardware in the container, so without this Wine has nowhere to
 # render sound and just drops it (the ALSA "cannot find card 0" errors).
+# Selkies captures this same sink directly - no separate audio pipeline needed.
 echo "Starting PulseAudio..."
 su - gamer -c "pulseaudio --start --exit-idle-time=-1 --disallow-exit" 2>&1 || true
 sleep 2
 su - gamer -c "pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description=VirtualSpeaker" 2>&1 || true
 su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
-
-# Stream the virtual sink out over HTTP as MP3 so the browser can play it
-# alongside the VNC video via a plain <audio> tag.
-echo "Starting audio stream on port 8000..."
-su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" \
-    > /tmp/ffmpeg-audio.log 2>&1 &
-FFMPEG_PID=$!
 
 # Find the SC1 executable
 echo "Starting StarCraft 1..."
@@ -76,24 +63,42 @@ SC_PID=$!
 
 echo "StarCraft 1 started with PID $SC_PID"
 
-# Start x11vnc in the foreground, cropped to StarCraft's actual 640x480
-# render area so there's no dead black space in the VNC canvas.
-# x11vnc exits by default once its first client disconnects (no -forever),
-# which we use below to recycle the whole container for the next player.
-echo "Starting x11vnc..."
-x11vnc -display :99 -clip 640x480+0+0 -nopw -listen localhost -rfbport 5900 &
-X11VNC_PID=$!
+# Start Selkies: captures display :99, encodes it as H.264 over plain
+# WebSockets (no GPU, no TURN/STUN needed for LAN), and streams
+# PulseAudio's virtual_speaker sink alongside it in the same connection.
+# Locked to StarCraft's native 640x480 so nothing is up/downscaled server
+# side; the browser client scales the canvas to fit the viewport.
+echo "Starting Selkies streaming server on port 8080..."
+su - gamer -c "\
+DISPLAY=:99 \
+SELKIES_PORT=8080 \
+SELKIES_ADDR=0.0.0.0 \
+SELKIES_MODE=websockets \
+SELKIES_ENCODER=h264enc \
+SELKIES_USE_CPU=true \
+SELKIES_AUDIO_ENABLED=true \
+SELKIES_AUDIO_DEVICE_NAME=virtual_speaker.monitor \
+SELKIES_ENABLE_BASIC_AUTH=false \
+SELKIES_IS_MANUAL_RESOLUTION_MODE=true \
+SELKIES_MANUAL_WIDTH=640 \
+SELKIES_MANUAL_HEIGHT=480 \
+SELKIES_UI_TITLE='${RACE_NAME:-TERRAN} - STARCRAFT' \
+SELKIES_RUN_AFTER_DISCONNECT=/usr/local/bin/on-disconnect.sh \
+selkies" \
+    > /tmp/selkies.log 2>&1 &
+SELKIES_PID=$!
 
-echo "VNC available at :99 (port 5900), cropped to 640x480"
-echo "noVNC available at http://localhost:6080"
+echo "Selkies available at http://localhost:8080"
 
 # Block here until the player disconnects (or never connects, in which
-# case this just waits). When x11vnc exits, tear everything down and
-# exit so Docker's restart policy relaunches the container fresh.
-wait $X11VNC_PID
+# case this just waits). Selkies runs the on-disconnect hook once the
+# last client leaves, which drops /tmp/session-ended for us to notice.
+echo "Waiting for player to disconnect..."
+while [ ! -f /tmp/session-ended ]; do
+    sleep 2
+done
 
 echo "Player disconnected - recycling container for a fresh session..."
-kill -9 "$SC_PID" "$XVFB_PID" "$FFMPEG_PID" 2>/dev/null || true
-pkill -9 websockify 2>/dev/null || true
+kill -9 "$SC_PID" "$XVFB_PID" "$SELKIES_PID" 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
 exit 0

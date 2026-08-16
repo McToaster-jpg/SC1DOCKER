@@ -1,34 +1,51 @@
-# Game Server Container - Runs StarCraft 1 with VNC streaming
+# Game Server Container - Runs StarCraft 1 streamed to the browser via Selkies
 FROM ubuntu:22.04
 
 # Skip interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Enable 32-bit architecture and install dependencies
+# Enable 32-bit architecture and install dependencies.
+# Package list per Selkies' documented Ubuntu install requirements, plus
+# Wine (32-bit, for StarCraft) and PulseAudio (audio capture source).
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y \
     wine \
     wine32 \
     xvfb \
-    x11vnc \
-    novnc \
-    websockify \
-    gettext-base \
+    xserver-xorg-core \
+    x11-utils \
+    x11-xkb-utils \
+    x11-xserver-utils \
+    libx11-xcb1 \
+    libxcb-dri3-0 \
+    libxkbcommon0 \
+    libxdamage1 \
+    libxfixes3 \
+    libxtst6 \
+    libxext6 \
+    libpulse0 \
     pulseaudio \
-    ffmpeg \
+    python3 \
+    python3-pip \
+    python3-dev \
+    jq \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Selkies (low-latency browser streaming server) from the latest
+# published release wheel.
+RUN SELKIES_VERSION="$(curl -fsSL "https://api.github.com/repos/selkies-project/selkies/releases/latest" | jq -r '.tag_name' | sed 's/^v//')" && \
+    cd /tmp && \
+    curl -O -fsSL "https://github.com/selkies-project/selkies/releases/download/v${SELKIES_VERSION}/selkies-${SELKIES_VERSION}-py3-none-any.whl" && \
+    PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --no-cache-dir --force-reinstall "selkies-${SELKIES_VERSION}-py3-none-any.whl" && \
+    rm -f "selkies-${SELKIES_VERSION}-py3-none-any.whl"
+
 # Create game user
 RUN useradd -m -u 1000 gamer
 
-# Custom themed index page (rendered per-race at container start via envsubst)
-COPY docker/game-server/index.html.template /usr/share/novnc/index.html.template
-COPY docker/game-server/emblems/ /usr/share/novnc/emblems/
-
-# Set up VNC and display
+# Set up display
 ENV DISPLAY=:99
 ENV WINE_CPU_TOPOLOGY=4:2
 ENV WINEARCH=win32
@@ -36,7 +53,6 @@ ENV WINEPREFIX=/home/gamer/.wine
 
 # Race branding (overridden per game-server in docker-compose)
 ENV RACE_NAME=TERRAN
-ENV RACE_COLOR=#00b4ff
 
 # Create directories and X11 socket directory (owned by root)
 RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer && \
@@ -50,13 +66,12 @@ RUN chown -R gamer:gamer /home/gamer/games/SC1
 COPY docker/game-server/start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Expose VNC, noVNC, and audio stream ports
-EXPOSE 5900
-EXPOSE 6080
-EXPOSE 8000
+# Expose the Selkies streaming port (plain WebSocket transport - no UDP,
+# STUN, or TURN needed for LAN use)
+EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:6080/vnc.html || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
 
 ENTRYPOINT ["/start.sh"]
