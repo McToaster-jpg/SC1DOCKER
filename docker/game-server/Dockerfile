@@ -33,7 +33,7 @@ COPY SC1/ /home/gamer/games/SC1/
 RUN chown -R gamer:gamer /home/gamer/games/SC1
 
 # Copy startup script
-COPY start.sh /start.sh
+COPY docker/game-server/start.sh /start.sh
 RUN chmod +x /start.sh
 
 # Expose VNC port
