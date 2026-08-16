@@ -21,6 +21,10 @@ RUN dpkg --add-architecture i386 && \
 # Create game user
 RUN useradd -m -u 1000 gamer
 
+# noVNC has no index.html by default, so websockify serves a directory listing.
+# Symlink vnc.html as index.html so the noVNC root loads the viewer automatically.
+RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+
 # Set up VNC and display
 ENV DISPLAY=:99
 ENV WINE_CPU_TOPOLOGY=4:2
