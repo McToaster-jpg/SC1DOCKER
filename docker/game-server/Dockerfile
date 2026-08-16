@@ -27,8 +27,9 @@ ENV WINE_CPU_TOPOLOGY=4:2
 ENV WINEARCH=win32
 ENV WINEPREFIX=/home/gamer/.wine
 
-# Create directories
-RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer
+# Create directories and X11 socket directory (owned by root)
+RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer && \
+    mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 
 # Copy SC1 files
 COPY SC1/ /home/gamer/games/SC1/
@@ -45,8 +46,5 @@ EXPOSE 6080
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:6080/vnc.html || exit 1
-
-# Run as gamer user
-USER gamer
 
 ENTRYPOINT ["/start.sh"]
