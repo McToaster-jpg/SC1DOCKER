@@ -84,11 +84,17 @@ SELKIES_MANUAL_WIDTH=640 \
 SELKIES_MANUAL_HEIGHT=480 \
 SELKIES_UI_TITLE='${RACE_NAME:-TERRAN} - STARCRAFT' \
 SELKIES_RUN_AFTER_DISCONNECT=/usr/local/bin/on-disconnect.sh \
-selkies" \
-    > /tmp/selkies.log 2>&1 &
+selkies" &
 SELKIES_PID=$!
 
-echo "Selkies available at http://localhost:8080"
+# Give it a moment to either bind the port or die, and say clearly which
+# one happened instead of optimistically assuming it's up.
+sleep 5
+if kill -0 "$SELKIES_PID" 2>/dev/null; then
+    echo "Selkies is running (pid $SELKIES_PID) - available at http://localhost:8080"
+else
+    echo "ERROR: Selkies exited immediately after startup - see the su/selkies output above for the real error"
+fi
 
 # Block here until the player disconnects (or never connects, in which
 # case this just waits). Selkies runs the on-disconnect hook once the
