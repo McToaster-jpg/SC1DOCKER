@@ -1,9 +1,13 @@
 # Game Server Container - Runs StarCraft 1 with VNC streaming
 FROM ubuntu:22.04
 
+# Skip interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-    wine wine32 wine64 \
+    wine \
     xvfb \
     tightvncserver \
     novnc \
