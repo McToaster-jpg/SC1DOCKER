@@ -93,10 +93,22 @@
     50% { opacity: 0.35; }
   }
 
-  .screen {
+  .stage {
     height: calc(100% - 48px);
     width: 100%;
     background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .screen {
+    /* 4:3 box sized to 80% of the viewport, capped by whichever
+       dimension is tighter, so it stays centered and rescales live. */
+    width: min(80vw, 106.66vh);
+    aspect-ratio: 4 / 3;
+    background: #000;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.85), 0 0 0 1px ${RACE_COLOR}33;
   }
 
   iframe {
@@ -120,8 +132,10 @@
       <a class="back-link" href="#" onclick="window.close(); return false;">✕ DISCONNECT</a>
     </div>
   </div>
-  <div class="screen">
-    <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2"></iframe>
+  <div class="stage">
+    <div class="screen">
+      <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2"></iframe>
+    </div>
   </div>
 </body>
 </html>

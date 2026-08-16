@@ -24,9 +24,11 @@ envsubst '${RACE_NAME} ${RACE_COLOR}' \
 RACE_LOWER=$(echo "${RACE_NAME:-TERRAN}" | tr '[:upper:]' '[:lower:]')
 cp "/usr/share/novnc/emblems/${RACE_LOWER}.svg" /usr/share/novnc/emblem.svg
 
-# Start Xvfb (virtual X server) as root
+# Start Xvfb (virtual X server) as root.
+# 640x480 matches StarCraft 1's native resolution so the VNC canvas has
+# no dead black space around the game window.
 echo "Starting Xvfb on display :99..."
-Xvfb :99 -screen 0 1024x768x24 -ac &
+Xvfb :99 -screen 0 640x480x24 -ac &
 XVFB_PID=$!
 sleep 3
 
