@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: sc1-frontend
     ports:
-      - "3000:3000"
+      - "9050:3000"
     depends_on:
       - game-orchestrator
     networks:
