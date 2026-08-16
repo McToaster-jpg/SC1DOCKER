@@ -5,9 +5,11 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
+# Enable 32-bit architecture and install dependencies
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y \
     wine \
+    wine32 \
     xvfb \
     tightvncserver \
     novnc \
