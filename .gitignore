@@ -4,9 +4,13 @@ npm-debug.log
 yarn-error.log
 package-lock.json
 yarn.lock
+# ...except the frontend's - keep it committed for reproducible Docker builds
+!frontend/package-lock.json
 
-# SC1 Game Files (too large for GitHub, add locally)
-SC1/
+# SC1 Game Files (too large for GitHub, add locally).
+# Use SC1/* rather than SC1/ - an ignored directory stops git from
+# descending into it at all, which silently breaks the negation below.
+SC1/*
 !SC1/README.md
 
 # Environment variables
