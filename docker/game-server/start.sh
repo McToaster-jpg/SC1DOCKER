@@ -51,20 +51,6 @@ sleep 2
 su - gamer -c "pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description=VirtualSpeaker" 2>&1 || true
 su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
 
-# Stream the virtual sink out over HTTP as MP3 so the browser can play it
-# alongside the VNC video via a plain <audio> tag. ffmpeg's built-in HTTP
-# listener only ever serves a single connection and then exits - without
-# a restart loop, the very first "Enable Audio" click (or even a stray
-# connection attempt) would silently kill the stream for everyone after.
-echo "Starting audio stream on port 8000..."
-(
-    while true; do
-        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio"
-        echo "Audio stream listener exited, restarting..."
-        sleep 1
-    done
-) &
-
 # x11vnc now stays up for the container's whole lifetime (-forever) instead
 # of exiting after the first disconnect. StarCraft itself - not the whole
 # container - is what cycles on join/leave now, so there's no need to
@@ -99,11 +85,22 @@ echo "Found executable: $STARCRAFT_EXE"
 
 # Lazy start/stop loop: an established TCP connection to x11vnc's port
 # means a browser client is actively connected via the noVNC websocket
-# bridge. StarCraft only actually runs while someone's connected - an
-# idle session costs next to nothing instead of burning CPU on the menu
-# screen animation with nobody watching.
+# bridge. StarCraft AND the audio stream only actually run while someone's
+# connected - an idle session costs next to nothing instead of burning CPU
+# on the menu screen animation with nobody watching.
+#
+# The audio stream specifically has to live here rather than start once at
+# boot: ffmpeg's pulse *input* starts capturing/encoding into an internal
+# queue the moment the process launches, regardless of whether its -listen
+# HTTP *output* has a client yet. Left running from container boot with
+# nobody connected, that queue silently grows for as long as the container
+# sits idle, then dumps the entire backlog at 100x+ speed the moment a
+# client finally connects - which is exactly the "audio a minute behind
+# and laggy" symptom. Tying its lifecycle to the same connect signal as
+# StarCraft means there's only ever a few seconds of backlog at most.
 GAME_RUNNING=0
 SC_PID=""
+FFMPEG_PID=""
 echo "Idle - waiting for a player to connect..."
 
 while true; do
@@ -114,22 +111,33 @@ while true; do
     fi
 
     if [ "$CONNECTED" = "1" ] && [ "$GAME_RUNNING" = "0" ]; then
-        echo "Player connected - starting StarCraft 1..."
+        echo "Player connected - starting StarCraft 1 and audio stream..."
         touch /tmp/occupied
         su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
         SC_PID=$!
+        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" &
+        FFMPEG_PID=$!
         GAME_RUNNING=1
     elif [ "$CONNECTED" = "0" ] && [ "$GAME_RUNNING" = "1" ]; then
-        echo "Player disconnected - stopping StarCraft 1, back to idle..."
+        echo "Player disconnected - stopping StarCraft 1 and audio stream, back to idle..."
         rm -f /tmp/occupied
-        kill -9 "$SC_PID" 2>/dev/null || true
+        kill -9 "$SC_PID" "$FFMPEG_PID" 2>/dev/null || true
         su - gamer -c "WINEPREFIX=/home/gamer/.wine wineserver -k" 2>/dev/null || true
         wait "$SC_PID" 2>/dev/null || true
+        wait "$FFMPEG_PID" 2>/dev/null || true
         SC_PID=""
+        FFMPEG_PID=""
         GAME_RUNNING=0
         echo "Idle - waiting for a player to connect..."
     elif [ "$CONNECTED" = "1" ]; then
         touch /tmp/occupied
+        # ffmpeg's -listen socket only serves a single HTTP connection
+        # before exiting; if the player toggles the page's own "Enable
+        # Audio" button, relaunch it so the next click still works.
+        if ! kill -0 "$FFMPEG_PID" 2>/dev/null; then
+            su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" &
+            FFMPEG_PID=$!
+        fi
     fi
 
     sleep 2
