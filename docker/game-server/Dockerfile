@@ -50,6 +50,12 @@ RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer && \
 COPY SC1/ /home/gamer/games/SC1/
 RUN chown -R gamer:gamer /home/gamer/games/SC1
 
+# Pre-create the Wine prefix dir owned by gamer (it doesn't exist until
+# Wine's first launch otherwise) so that when a named volume is mounted
+# here at runtime, Docker seeds it with correct ownership instead of an
+# empty root-owned directory gamer can't write into.
+RUN mkdir -p /home/gamer/.wine && chown -R gamer:gamer /home/gamer/.wine
+
 # Copy startup script
 COPY docker/game-server/start.sh /start.sh
 RUN chmod +x /start.sh
