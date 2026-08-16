@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TerranEmblem, ProtossEmblem, ZergEmblem } from './Emblems';
 
 const SESSIONS = [
-  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', port: 6122, statusPort: 8091 },
-  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', port: 6223, statusPort: 8092 },
-  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', port: 6324, statusPort: 8093 }
+  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', port: 4001, statusPort: 4003 },
+  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', port: 4004, statusPort: 4006 },
+  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', port: 4007, statusPort: 4009 }
 ];
 
 const POLL_INTERVAL_MS = 3000;

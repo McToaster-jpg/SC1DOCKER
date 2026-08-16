@@ -9,14 +9,14 @@ play with whoever else on the network joins the other two slots.
 ```
 Browser
   │
-  ├── Frontend (React, nginx)              :9050
+  ├── Frontend (React, nginx)              :4000
   │     enter a name → pick a session
   │
-  ├── Game Server - Terran   (Wine + SC1 → x11vnc → noVNC)   :6122
-  ├── Game Server - Protoss  (Wine + SC1 → x11vnc → noVNC)   :6223
-  └── Game Server - Zerg     (Wine + SC1 → x11vnc → noVNC)   :6324
-        each also streams audio (PulseAudio → ffmpeg → MP3 over HTTP)
-        and reports live occupancy via a small status endpoint
+  ├── Game Server - Terran   (Wine + SC1 → x11vnc → noVNC)   :4001
+  ├── Game Server - Protoss  (Wine + SC1 → x11vnc → noVNC)   :4004
+  └── Game Server - Zerg     (Wine + SC1 → x11vnc → noVNC)   :4007
+        each also streams audio (PulseAudio → raw PCM → WebSocket →
+        Web Audio API) and reports live occupancy via a status endpoint
 ```
 
 There's no login, database, or orchestrator API - just a name (stored in
@@ -49,21 +49,36 @@ docker-compose up -d --build
 
 **3. Play**
 
-Open `http://<docker-host-ip>:9050`, enter a name, and pick a race. Each
+Open `http://<docker-host-ip>:4000`, enter a name, and pick a race. Each
 session opens in a new tab streaming the live game.
 
 ## Ports
 
+All ten host ports live in the 4000 range:
+
 | Service | Port | Purpose |
 |---|---|---|
-| Frontend | 9050 | Lobby web UI |
-| Terran / Protoss / Zerg video | 6122 / 6223 / 6324 | noVNC game stream |
-| Terran / Protoss / Zerg audio | 8081 / 8082 / 8083 | MP3 audio stream |
-| Terran / Protoss / Zerg status | 8091 / 8092 / 8093 | Occupancy JSON, polled by the lobby |
+| Frontend | 4000 | Lobby web UI |
+| Terran video / audio / status | 4001 / 4002 / 4003 | noVNC stream, raw-PCM audio WebSocket, occupancy JSON |
+| Protoss video / audio / status | 4004 / 4005 / 4006 | noVNC stream, raw-PCM audio WebSocket, occupancy JSON |
+| Zerg video / audio / status | 4007 / 4008 / 4009 | noVNC stream, raw-PCM audio WebSocket, occupancy JSON |
 
-If you're putting this behind a reverse proxy for a domain/SSL, the
-frontend on 9050 is the only port that strictly needs to be
-internet-facing; the game/audio/status ports are meant for LAN access.
+**Reverse proxy note:** every one of the game-server ports (video, audio,
+status) is HTTP-upgradable - noVNC and the audio stream are both plain
+WebSockets, and status is plain JSON - so all ten *can* go through an
+nginx-based proxy (e.g. Nginx Proxy Manager) with "Websockets Support"
+enabled. The catch: the frontend's JS builds every game/audio/status URL
+as "same hostname the page was loaded from, different port" - it never
+hardcodes an IP. That works two ways:
+- **LAN-only (simplest):** only proxy the frontend (4000) behind your
+  domain/SSL for convenient access; leave 4001-4009 as plain LAN ports
+  (or don't forward them past your router at all if this never leaves
+  the LAN). This is what the "same hostname" logic assumes by default.
+- **Fully remote-playable:** proxy all ten ports. Since a reverse proxy
+  fronts everything on 443 by hostname rather than by port number, this
+  needs one proxy host per port (subdomains work well - e.g.
+  `sc1.`, `terran.`, `terran-audio.`, `terran-status.`, etc.) rather
+  than a single domain with different ports in the URL.
 
 ## Persistence
 
