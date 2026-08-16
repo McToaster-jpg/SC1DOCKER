@@ -8,7 +8,7 @@ rm -f /tmp/.X99-lock 2>/dev/null || true
 rm -f /tmp/.X11-unix/X99 2>/dev/null || true
 rm -f /tmp/session-ended 2>/dev/null || true
 pkill -9 Xvfb 2>/dev/null || true
-pkill -9 selkies 2>/dev/null || true
+pkill -9 -f "python3 -m selkies" 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
 pkill -9 wine 2>/dev/null || true
 rm -rf /home/gamer/.config/pulse /run/user/1000/pulse 2>/dev/null || true
@@ -63,13 +63,6 @@ SC_PID=$!
 
 echo "StarCraft 1 started with PID $SC_PID"
 
-# Resolve selkies' absolute path as root - the gamer user's login shell
-# is dash ("-sh"), whose PATH during `su - gamer` doesn't reliably include
-# wherever pip installed the console script, causing a silent
-# "selkies: not found" failure if we call it by bare name.
-SELKIES_BIN="$(command -v selkies || echo /usr/local/bin/selkies)"
-echo "Using selkies binary: ${SELKIES_BIN}"
-
 # Start Selkies: captures display :99, encodes it as H.264 over plain
 # WebSockets (no GPU, no TURN/STUN needed for LAN), and streams
 # PulseAudio's virtual_speaker sink alongside it in the same connection.
@@ -91,7 +84,7 @@ SELKIES_MANUAL_WIDTH=640 \
 SELKIES_MANUAL_HEIGHT=480 \
 SELKIES_UI_TITLE='${RACE_NAME:-TERRAN} - STARCRAFT' \
 SELKIES_RUN_AFTER_DISCONNECT=/usr/local/bin/on-disconnect.sh \
-${SELKIES_BIN}" &
+python3 -m selkies" &
 SELKIES_PID=$!
 
 # Give it a moment to either bind the port or die, and say clearly which
