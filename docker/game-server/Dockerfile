@@ -24,6 +24,7 @@ RUN useradd -m -u 1000 gamer
 
 # Custom themed index page (rendered per-race at container start via envsubst)
 COPY docker/game-server/index.html.template /usr/share/novnc/index.html.template
+COPY docker/game-server/emblems/ /usr/share/novnc/emblems/
 
 # Set up VNC and display
 ENV DISPLAY=:99
@@ -33,8 +34,7 @@ ENV WINEPREFIX=/home/gamer/.wine
 
 # Race branding (overridden per game-server in docker-compose)
 ENV RACE_NAME=TERRAN
-ENV RACE_ICON=🦅
-ENV RACE_COLOR=#ff6b35
+ENV RACE_COLOR=#00b4ff
 
 # Create directories and X11 socket directory (owned by root)
 RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer && \

@@ -31,7 +31,8 @@
   }
 
   .brand .icon {
-    font-size: 22px;
+    width: 28px;
+    height: 28px;
     filter: drop-shadow(0 0 6px ${RACE_COLOR});
   }
 
@@ -109,9 +110,9 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <span class="icon">${RACE_ICON}</span>
+      <img class="icon" src="emblem.svg" alt="${RACE_NAME} emblem" />
       <span class="title">${RACE_NAME}</span>
-      <span class="subtitle">STARCRAFT · BROOD WAR</span>
+      <span class="subtitle">STARCRAFT</span>
     </div>
     <div class="status">
       <div class="dot"></div>

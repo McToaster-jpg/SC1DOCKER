@@ -1,0 +1,16 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="terranMetal" x1="0" y1="0" x2="100" y2="100">
+      <stop offset="0%" stop-color="#dfe9f2" />
+      <stop offset="45%" stop-color="#7fa8c9" />
+      <stop offset="100%" stop-color="#1c3a52" />
+    </linearGradient>
+  </defs>
+  <polygon points="50,4 88,22 88,58 50,96 12,58 12,22"
+    fill="url(#terranMetal)" stroke="#0b1e2c" stroke-width="2.5" />
+  <polygon points="50,16 76,29 76,55 50,80 24,55 24,29"
+    fill="none" stroke="#0b1e2c" stroke-width="1.5" opacity="0.6" />
+  <path d="M50 30 L62 42 L50 70 L38 42 Z" fill="#0b1e2c" opacity="0.85" />
+  <rect x="46" y="38" width="8" height="20" fill="#00e5ff" opacity="0.9" />
+  <circle cx="50" cy="50" r="3" fill="#ffffff" />
+</svg>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../api';
+import { AllianceEmblem } from './Emblems';
 
 export default function LoginPage({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -29,11 +29,12 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div className="login-container">
+      <div className="starfield" aria-hidden="true"></div>
       <div className="login-box">
         <div className="login-header">
-          <div className="logo">⚔️</div>
+          <AllianceEmblem className="logo-emblem" />
           <h1>STARCRAFT</h1>
-          <p className="tagline">BROOD WAR</p>
+          <p className="tagline">TERRAN &middot; PROTOSS &middot; ZERG</p>
         </div>
 
         <form onSubmit={handleLogin}>
@@ -56,7 +57,7 @@ export default function LoginPage({ onLogin }) {
         {error && <div className="error-message">⚠ {error}</div>}
 
         <div className="login-footer">
-          <p>v1.0 | MULTIPLAYER BETA</p>
+          <p>LOCAL AREA NETWORK</p>
         </div>
       </div>
     </div>
