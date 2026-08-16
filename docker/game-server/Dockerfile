@@ -16,7 +16,6 @@ RUN dpkg --add-architecture i386 && \
     websockify \
     gettext-base \
     pulseaudio \
-    ffmpeg \
     iproute2 \
     curl \
     ca-certificates \

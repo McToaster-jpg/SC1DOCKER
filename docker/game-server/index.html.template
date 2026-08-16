@@ -166,30 +166,96 @@
       <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=9&compression=0"></iframe>
     </div>
   </div>
-  <audio id="gameAudio" preload="none"></audio>
   <script>
-    var audioEl = document.getElementById('gameAudio');
+    // Raw PCM (s16le, 48kHz stereo) streamed over a WebSocket, played back
+    // via the Web Audio API instead of an <audio src> element. A plain
+    // <audio> tag applies conservative buffering to any indefinite,
+    // non-seekable HTTP stream by design - there's no way to override that
+    // from the server side, and it was the real source of ~20s of lag even
+    // after stripping every buffering layer on the encoding side. Scheduling
+    // decoded samples directly against the AudioContext clock bypasses that
+    // entirely.
     var audioBtn = document.getElementById('audioBtn');
+    var audioCtx = null;
+    var audioSocket = null;
+    var nextStartTime = 0;
     var audioOn = false;
+    var SAMPLE_RATE = 48000;
+
+    function pcm16ToAudioBuffer(ctx, arrayBuffer) {
+      var view = new DataView(arrayBuffer);
+      var sampleCount = Math.floor(arrayBuffer.byteLength / 4); // 2ch * 2 bytes
+      var buffer = ctx.createBuffer(2, sampleCount, SAMPLE_RATE);
+      var left = buffer.getChannelData(0);
+      var right = buffer.getChannelData(1);
+      for (var i = 0; i < sampleCount; i++) {
+        var offset = i * 4;
+        left[i] = view.getInt16(offset, true) / 32768;
+        right[i] = view.getInt16(offset + 2, true) / 32768;
+      }
+      return buffer;
+    }
+
+    function stopAudio() {
+      if (audioSocket) {
+        audioSocket.onmessage = null;
+        audioSocket.close();
+        audioSocket = null;
+      }
+      if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+      }
+      audioBtn.textContent = '🔇 ENABLE AUDIO';
+      audioBtn.classList.remove('on');
+      audioOn = false;
+    }
+
+    function startAudio() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Small lead-in so the first couple of chunks have somewhere to land
+      // before playback catches up to the live edge.
+      nextStartTime = audioCtx.currentTime + 0.2;
+
+      var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      audioSocket = new WebSocket(wsProto + '//' + window.location.hostname + ':${AUDIO_PORT}/');
+      audioSocket.binaryType = 'arraybuffer';
+
+      audioSocket.onmessage = function (evt) {
+        if (!audioCtx) return;
+        var buffer = pcm16ToAudioBuffer(audioCtx, evt.data);
+        var src = audioCtx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(audioCtx.destination);
+
+        var now = audioCtx.currentTime;
+        if (nextStartTime < now) {
+          // Fell behind (backgrounded tab, GC pause, etc) - resync to the
+          // live edge instead of firing a pile of overlapping buffers.
+          nextStartTime = now + 0.05;
+        }
+        src.start(nextStartTime);
+        nextStartTime += buffer.duration;
+      };
+
+      audioSocket.onerror = function (err) {
+        console.warn('Audio socket error:', err);
+      };
+
+      audioSocket.onclose = function () {
+        if (audioOn) stopAudio();
+      };
+
+      audioBtn.textContent = '🔊 AUDIO ON';
+      audioBtn.classList.add('on');
+      audioOn = true;
+    }
 
     function toggleAudio() {
       if (audioOn) {
-        audioEl.pause();
-        audioEl.removeAttribute('src');
-        audioEl.load();
-        audioBtn.textContent = '🔇 ENABLE AUDIO';
-        audioBtn.classList.remove('on');
-        audioOn = false;
+        stopAudio();
       } else {
-        // Cache-bust so each connect grabs a fresh live stream instead of
-        // reusing a stale buffered one from a previous session.
-        audioEl.src = 'http://' + window.location.hostname + ':${AUDIO_PORT}/audio?t=' + Date.now();
-        audioEl.play().catch(function (err) {
-          console.warn('Audio playback failed:', err);
-        });
-        audioBtn.textContent = '🔊 AUDIO ON';
-        audioBtn.classList.add('on');
-        audioOn = true;
+        startAudio();
       }
     }
   </script>

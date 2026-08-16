@@ -10,7 +10,6 @@ pkill -9 Xvfb 2>/dev/null || true
 pkill -9 x11vnc 2>/dev/null || true
 pkill -9 websockify 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
-pkill -9 ffmpeg 2>/dev/null || true
 pkill -9 -f status_server.py 2>/dev/null || true
 rm -f /tmp/occupied 2>/dev/null || true
 rm -rf /home/gamer/.config/pulse /run/user/1000/pulse 2>/dev/null || true
@@ -51,6 +50,26 @@ sleep 2
 su - gamer -c "pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description=VirtualSpeaker" 2>&1 || true
 su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
 
+# Stream that sink's monitor out as RAW PCM over a plain TCP socket - no
+# encoder, no container format, no muxer. This replaced an ffmpeg/MP3 (then
+# Opus) HTTP pipeline that was still several seconds behind even after
+# stripping every buffering flag ffmpeg exposes, because the real bottleneck
+# was the browser's own <audio src> element: it applies conservative
+# buffering to any indefinite, non-seekable HTTP stream by design, and
+# there's no way to override that from the server side.
+# module-simple-protocol-tcp is a real persistent server (unlike ffmpeg's
+# one-shot -listen), so it can just stay up for the container's whole
+# lifetime like everything else - and since there's no encoder queue,
+# there's no backlog-buildup class of bug possible here either.
+echo "Starting raw PCM audio TCP server..."
+su - gamer -c "pactl load-module module-simple-protocol-tcp rate=48000 format=s16le channels=2 source=virtual_speaker.monitor record=true playback=false port=9001 listen=127.0.0.1" 2>&1 || true
+
+# Bridge that raw TCP audio stream to a WebSocket, same pattern already
+# used for VNC. The browser side reads this via the Web Audio API and
+# schedules playback directly, bypassing <audio>'s buffering entirely.
+echo "Starting audio WebSocket bridge on port 8000..."
+websockify -D 8000 localhost:9001 2>&1 || true
+
 # x11vnc now stays up for the container's whole lifetime (-forever) instead
 # of exiting after the first disconnect. StarCraft itself - not the whole
 # container - is what cycles on join/leave now, so there's no need to
@@ -85,28 +104,12 @@ echo "Found executable: $STARCRAFT_EXE"
 
 # Lazy start/stop loop: an established TCP connection to x11vnc's port
 # means a browser client is actively connected via the noVNC websocket
-# bridge. StarCraft AND the audio stream only actually run while someone's
-# connected - an idle session costs next to nothing instead of burning CPU
-# on the menu screen animation with nobody watching.
-#
-# The audio stream specifically has to live here rather than start once at
-# boot: ffmpeg's pulse *input* starts capturing/encoding into an internal
-# queue the moment the process launches, regardless of whether its -listen
-# HTTP *output* has a client yet. Left running from container boot with
-# nobody connected, that queue silently grows for as long as the container
-# sits idle, then dumps the entire backlog at 100x+ speed the moment a
-# client finally connects - which is exactly the "audio a minute behind
-# and laggy" symptom. Tying its lifecycle to the same connect signal as
-# StarCraft means there's only ever a few seconds of backlog at most.
-#
-# Encoded as Opus/Ogg rather than MP3: MP3-over-plain-HTTP is built for
-# on-demand file playback, so browsers buffer it conservatively; Opus/Ogg
-# is the format WebRTC itself uses specifically because it's designed for
-# live low-latency streaming, and -fflags nobuffer/-flush_packets 1 strip
-# ffmpeg's own internal buffering on top of that.
+# bridge. StarCraft only actually runs while someone's connected - an
+# idle session costs next to nothing instead of burning CPU on the menu
+# screen animation with nobody watching. (Audio no longer needs this
+# treatment - see above.)
 GAME_RUNNING=0
 SC_PID=""
-FFMPEG_PID=""
 echo "Idle - waiting for a player to connect..."
 
 while true; do
@@ -117,33 +120,22 @@ while true; do
     fi
 
     if [ "$CONNECTED" = "1" ] && [ "$GAME_RUNNING" = "0" ]; then
-        echo "Player connected - starting StarCraft 1 and audio stream..."
+        echo "Player connected - starting StarCraft 1..."
         touch /tmp/occupied
         su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
         SC_PID=$!
-        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -fflags nobuffer -flags low_delay -acodec libopus -b:a 128k -application lowdelay -f ogg -flush_packets 1 -listen 1 http://0.0.0.0:8000/audio" &
-        FFMPEG_PID=$!
         GAME_RUNNING=1
     elif [ "$CONNECTED" = "0" ] && [ "$GAME_RUNNING" = "1" ]; then
-        echo "Player disconnected - stopping StarCraft 1 and audio stream, back to idle..."
+        echo "Player disconnected - stopping StarCraft 1, back to idle..."
         rm -f /tmp/occupied
-        kill -9 "$SC_PID" "$FFMPEG_PID" 2>/dev/null || true
+        kill -9 "$SC_PID" 2>/dev/null || true
         su - gamer -c "WINEPREFIX=/home/gamer/.wine wineserver -k" 2>/dev/null || true
         wait "$SC_PID" 2>/dev/null || true
-        wait "$FFMPEG_PID" 2>/dev/null || true
         SC_PID=""
-        FFMPEG_PID=""
         GAME_RUNNING=0
         echo "Idle - waiting for a player to connect..."
     elif [ "$CONNECTED" = "1" ]; then
         touch /tmp/occupied
-        # ffmpeg's -listen socket only serves a single HTTP connection
-        # before exiting; if the player toggles the page's own "Enable
-        # Audio" button, relaunch it so the next click still works.
-        if ! kill -0 "$FFMPEG_PID" 2>/dev/null; then
-            su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -fflags nobuffer -flags low_delay -acodec libopus -b:a 128k -application lowdelay -f ogg -flush_packets 1 -listen 1 http://0.0.0.0:8000/audio" &
-            FFMPEG_PID=$!
-        fi
     fi
 
     sleep 2
