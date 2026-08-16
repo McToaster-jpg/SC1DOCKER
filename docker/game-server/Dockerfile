@@ -29,18 +29,16 @@ RUN dpkg --add-architecture i386 && \
     python3 \
     python3-pip \
     python3-dev \
-    jq \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Selkies (low-latency browser streaming server) from the latest
-# published release wheel.
-RUN SELKIES_VERSION="$(curl -fsSL "https://api.github.com/repos/selkies-project/selkies/releases/latest" | jq -r '.tag_name' | sed 's/^v//')" && \
-    cd /tmp && \
-    curl -O -fsSL "https://github.com/selkies-project/selkies/releases/download/v${SELKIES_VERSION}/selkies-${SELKIES_VERSION}-py3-none-any.whl" && \
-    PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --no-cache-dir --force-reinstall "selkies-${SELKIES_VERSION}-py3-none-any.whl" && \
-    rm -f "selkies-${SELKIES_VERSION}-py3-none-any.whl"
+# Install Selkies (low-latency browser streaming server) straight from PyPI.
+# The GitHub release asset naming (selkies_gstreamer-X.Y.Z-*.whl) doesn't
+# match the plain "selkies" package name, and its tags can lag behind
+# what's actually published to PyPI, so pip resolving it directly is the
+# more reliable path.
+RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --no-cache-dir selkies
 
 # Create game user
 RUN useradd -m -u 1000 gamer
