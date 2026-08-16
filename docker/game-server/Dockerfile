@@ -17,6 +17,7 @@ RUN dpkg --add-architecture i386 && \
     gettext-base \
     pulseaudio \
     ffmpeg \
+    iproute2 \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -27,6 +28,9 @@ RUN useradd -m -u 1000 gamer
 # Custom themed index page (rendered per-race at container start via envsubst)
 COPY docker/game-server/index.html.template /usr/share/novnc/index.html.template
 COPY docker/game-server/emblems/ /usr/share/novnc/emblems/
+
+# Tiny CORS-enabled status endpoint the lobby polls for occupancy
+COPY docker/game-server/status_server.py /status_server.py
 
 # Set up VNC and display
 ENV DISPLAY=:99
@@ -50,10 +54,11 @@ RUN chown -R gamer:gamer /home/gamer/games/SC1
 COPY docker/game-server/start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Expose VNC, noVNC, and audio stream ports
+# Expose VNC, noVNC, audio, and status ports
 EXPOSE 5900
 EXPOSE 6080
 EXPOSE 8000
+EXPOSE 6081
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

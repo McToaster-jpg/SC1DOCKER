@@ -382,6 +382,18 @@ body {
   transform: scale(0.98);
 }
 
+.join-button:disabled {
+  background: rgba(143, 180, 204, 0.15);
+  color: rgba(143, 180, 204, 0.5);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.join-button:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
 .connecting-animation {
   width: 100%;
   padding: 14px;

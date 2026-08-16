@@ -160,7 +160,10 @@
   </div>
   <div class="stage">
     <div class="screen">
-      <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2"></iframe>
+      <!-- On a LAN, bandwidth is free but compression CPU time isn't -
+           push quality up and compression down for a crisper, lower-latency
+           picture instead of optimizing for a constrained connection. -->
+      <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=9&compression=0"></iframe>
     </div>
   </div>
   <audio id="gameAudio" preload="none"></audio>

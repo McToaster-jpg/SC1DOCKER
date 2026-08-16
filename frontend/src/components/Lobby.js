@@ -1,15 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TerranEmblem, ProtossEmblem, ZergEmblem } from './Emblems';
 
 const SESSIONS = [
-  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', port: 6122, status: 'online' },
-  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', port: 6223, status: 'online' },
-  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', port: 6324, status: 'online' }
+  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', port: 6122, statusPort: 8091 },
+  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', port: 6223, statusPort: 8092 },
+  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', port: 6324, statusPort: 8093 }
 ];
+
+const POLL_INTERVAL_MS = 3000;
 
 export default function Lobby({ player, onLogout }) {
   const [connecting, setConnecting] = useState(null);
   const [error, setError] = useState('');
+  const [occupied, setOccupied] = useState({});
+
+  const pollStatus = useCallback(async () => {
+    const results = await Promise.all(
+      SESSIONS.map(async (session) => {
+        try {
+          const res = await fetch(
+            `http://${window.location.hostname}:${session.statusPort}/status?t=${Date.now()}`
+          );
+          if (!res.ok) return [session.id, false];
+          const data = await res.json();
+          return [session.id, !!data.occupied];
+        } catch {
+          // Container still booting or unreachable - treat as available
+          // rather than falsely blocking players.
+          return [session.id, false];
+        }
+      })
+    );
+    setOccupied(Object.fromEntries(results));
+  }, []);
+
+  useEffect(() => {
+    pollStatus();
+    const interval = setInterval(pollStatus, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [pollStatus]);
 
   const handleJoinSession = (session) => {
     setError('');
@@ -44,6 +73,7 @@ export default function Lobby({ player, onLogout }) {
         <div className="sessions-grid">
           {SESSIONS.map(session => {
             const { Emblem } = session;
+            const inUse = !!occupied[session.id];
             return (
               <div
                 key={session.id}
@@ -57,7 +87,7 @@ export default function Lobby({ player, onLogout }) {
                 <div className="session-info">
                   <p className="info-line">RACE: <span>{session.name}</span></p>
                   <p className="info-line">STATUS: <span className="online">● ONLINE</span></p>
-                  <p className="info-line">PLAYERS: <span>1/1</span></p>
+                  <p className="info-line">PLAYERS: <span>{inUse ? '1/1' : '0/1'}</span></p>
                 </div>
 
                 <div className="session-status">
@@ -69,8 +99,9 @@ export default function Lobby({ player, onLogout }) {
                     <button
                       className="join-button"
                       onClick={() => handleJoinSession(session)}
+                      disabled={inUse}
                     >
-                      ▶ START GAME
+                      {inUse ? '🔒 IN USE' : '▶ START GAME'}
                     </button>
                   )}
                 </div>

@@ -11,6 +11,8 @@ pkill -9 x11vnc 2>/dev/null || true
 pkill -9 websockify 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
 pkill -9 ffmpeg 2>/dev/null || true
+pkill -9 -f status_server.py 2>/dev/null || true
+rm -f /tmp/occupied 2>/dev/null || true
 rm -rf /home/gamer/.config/pulse /run/user/1000/pulse 2>/dev/null || true
 sleep 1
 
@@ -80,12 +82,39 @@ echo "StarCraft 1 started with PID $SC_PID"
 # render area so there's no dead black space in the VNC canvas.
 # x11vnc exits by default once its first client disconnects (no -forever),
 # which we use below to recycle the whole container for the next player.
+# Perf tuning for LAN play (plenty of CPU cores, bandwidth is free):
+#   -wait 10    poll every 10ms instead of the ~20-30ms default, raising
+#               the achievable frame rate ceiling
+#   -threads    use multiple threads for screen scanning/compression
+#   -defer 10   flush updates to the client after 10ms instead of batching
+#               longer, trading a little bandwidth for lower input latency
 echo "Starting x11vnc..."
-x11vnc -display :99 -clip 640x480+0+0 -nopw -listen localhost -rfbport 5900 &
+x11vnc -display :99 -clip 640x480+0+0 -nopw -listen localhost -rfbport 5900 \
+    -wait 10 -threads -defer 10 &
 X11VNC_PID=$!
 
 echo "VNC available at :99 (port 5900), cropped to 640x480"
 echo "noVNC available at http://localhost:6080"
+
+# Serve occupancy status on port 6081, polled by the lobby so it can show
+# real 0/1 vs 1/1 counts and grey out Start Game for sessions in use.
+echo "Starting status server on port ${STATUS_PORT:-6081}..."
+STATUS_PORT="${STATUS_PORT:-6081}" python3 /status_server.py &
+STATUS_SERVER_PID=$!
+
+# Background poller: an established TCP connection to x11vnc's port means
+# a browser client is actively connected via the noVNC websocket bridge.
+(
+    while true; do
+        if ss -tn state established '( sport = :5900 )' 2>/dev/null | tail -n +2 | grep -q .; then
+            touch /tmp/occupied
+        else
+            rm -f /tmp/occupied
+        fi
+        sleep 2
+    done
+) &
+STATUS_LOOP_PID=$!
 
 # Block here until the player disconnects (or never connects, in which
 # case this just waits). When x11vnc exits, tear everything down and
@@ -93,7 +122,7 @@ echo "noVNC available at http://localhost:6080"
 wait $X11VNC_PID
 
 echo "Player disconnected - recycling container for a fresh session..."
-kill -9 "$SC_PID" "$XVFB_PID" "$FFMPEG_PID" 2>/dev/null || true
+kill -9 "$SC_PID" "$XVFB_PID" "$FFMPEG_PID" "$STATUS_SERVER_PID" "$STATUS_LOOP_PID" 2>/dev/null || true
 pkill -9 websockify 2>/dev/null || true
 pkill -9 pulseaudio 2>/dev/null || true
 exit 0

@@ -29,11 +29,13 @@ services:
     ports:
       - "6122:6080"
       - "8081:8000"
+      - "8091:6081"
     environment:
       - DISPLAY=:99
       - RACE_NAME=TERRAN
       - RACE_COLOR=#00b4ff
       - AUDIO_PORT=8081
+      - STATUS_PORT=6081
     networks:
       - sc1-network
     restart: unless-stopped
@@ -48,11 +50,13 @@ services:
     ports:
       - "6223:6080"
       - "8082:8000"
+      - "8092:6081"
     environment:
       - DISPLAY=:99
       - RACE_NAME=PROTOSS
       - RACE_COLOR=#ffd700
       - AUDIO_PORT=8082
+      - STATUS_PORT=6081
     networks:
       - sc1-network
     restart: unless-stopped
@@ -67,11 +71,13 @@ services:
     ports:
       - "6324:6080"
       - "8083:8000"
+      - "8093:6081"
     environment:
       - DISPLAY=:99
       - RACE_NAME=ZERG
       - RACE_COLOR=#a020f0
       - AUDIO_PORT=8083
+      - STATUS_PORT=6081
     networks:
       - sc1-network
     restart: unless-stopped
