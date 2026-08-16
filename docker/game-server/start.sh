@@ -19,21 +19,17 @@ Xvfb :99 -screen 0 1024x768x24 -ac &
 XVFB_PID=$!
 sleep 3
 
-# Setup gamer user environment
-export HOME=/home/gamer
-export USER=gamer
-export DISPLAY=:99
-export WINEARCH=win32
-export WINEPREFIX=/home/gamer/.wine
-
-# Create VNC password file
+# Create VNC directory as root with proper permissions for gamer
 mkdir -p /home/gamer/.vnc
-echo "starcraft1" | vncpasswd -f > /home/gamer/.vnc/passwd
-chmod 600 /home/gamer/.vnc/passwd
+chown gamer:gamer /home/gamer/.vnc
+chmod 700 /home/gamer/.vnc
 
-# Start VNC server
+# Create VNC password file as gamer user
+echo "starcraft1" | su - gamer -c "vncpasswd -f > ~/.vnc/passwd && chmod 600 ~/.vnc/passwd"
+
+# Start VNC server with explicit DISPLAY
 echo "Starting VNC server..."
-su - gamer -c "vncserver :99 -geometry 1024x768 -depth 24 -passwordfile ~/.vnc/passwd" 2>&1 || true
+su - gamer -c "DISPLAY=:99 vncserver :99 -geometry 1024x768 -depth 24 -passwordfile ~/.vnc/passwd" 2>&1 || true
 sleep 3
 
 # Start noVNC (web VNC)
@@ -41,11 +37,10 @@ echo "Starting noVNC..."
 websockify -D --web=/usr/share/novnc/ 6080 localhost:5900 2>/dev/null &
 sleep 2
 
-# Launch StarCraft 1
+# Find the SC1 executable
 echo "Starting StarCraft 1..."
 cd /home/gamer/games/SC1
 
-# Find the main executable
 STARCRAFT_EXE=$(find . -name "*.exe" -type f | head -1)
 
 if [ -z "$STARCRAFT_EXE" ]; then
@@ -55,8 +50,8 @@ fi
 
 echo "Found executable: $STARCRAFT_EXE"
 
-# Run StarCraft with Wine as gamer user
-su - gamer -c "cd /home/gamer/games/SC1 && wine '$STARCRAFT_EXE'" &
+# Run StarCraft with Wine as gamer user with explicit display and wine settings
+su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
 SC_PID=$!
 
 echo "StarCraft 1 started with PID $SC_PID"

@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5121';
+const API_BASE = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5121`;
 
 export const api = {
   async register(playerId, username, password) {
