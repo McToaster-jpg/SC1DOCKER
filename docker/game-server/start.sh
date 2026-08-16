@@ -98,6 +98,12 @@ echo "Found executable: $STARCRAFT_EXE"
 # client finally connects - which is exactly the "audio a minute behind
 # and laggy" symptom. Tying its lifecycle to the same connect signal as
 # StarCraft means there's only ever a few seconds of backlog at most.
+#
+# Encoded as Opus/Ogg rather than MP3: MP3-over-plain-HTTP is built for
+# on-demand file playback, so browsers buffer it conservatively; Opus/Ogg
+# is the format WebRTC itself uses specifically because it's designed for
+# live low-latency streaming, and -fflags nobuffer/-flush_packets 1 strip
+# ffmpeg's own internal buffering on top of that.
 GAME_RUNNING=0
 SC_PID=""
 FFMPEG_PID=""
@@ -115,7 +121,7 @@ while true; do
         touch /tmp/occupied
         su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
         SC_PID=$!
-        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" &
+        su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -fflags nobuffer -flags low_delay -acodec libopus -b:a 128k -application lowdelay -f ogg -flush_packets 1 -listen 1 http://0.0.0.0:8000/audio" &
         FFMPEG_PID=$!
         GAME_RUNNING=1
     elif [ "$CONNECTED" = "0" ] && [ "$GAME_RUNNING" = "1" ]; then
@@ -135,7 +141,7 @@ while true; do
         # before exiting; if the player toggles the page's own "Enable
         # Audio" button, relaunch it so the next click still works.
         if ! kill -0 "$FFMPEG_PID" 2>/dev/null; then
-            su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" &
+            su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -fflags nobuffer -flags low_delay -acodec libopus -b:a 128k -application lowdelay -f ogg -flush_packets 1 -listen 1 http://0.0.0.0:8000/audio" &
             FFMPEG_PID=$!
         fi
     fi
