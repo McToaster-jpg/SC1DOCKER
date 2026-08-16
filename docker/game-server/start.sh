@@ -21,11 +21,11 @@ chmod 1777 /tmp/.X11-unix
 
 # Render the themed noVNC landing page for this race
 echo "Rendering ${RACE_NAME:-TERRAN} branded page..."
-envsubst '${RACE_NAME} ${RACE_COLOR} ${AUDIO_PORT}' \
+export RACE_LOWER=$(echo "${RACE_NAME:-TERRAN}" | tr '[:upper:]' '[:lower:]')
+envsubst '${RACE_NAME} ${RACE_COLOR} ${AUDIO_PORT} ${PUBLIC_DOMAIN} ${RACE_LOWER}' \
     < /usr/share/novnc/index.html.template \
     > /usr/share/novnc/index.html
 
-RACE_LOWER=$(echo "${RACE_NAME:-TERRAN}" | tr '[:upper:]' '[:lower:]')
 cp "/usr/share/novnc/emblems/${RACE_LOWER}.svg" /usr/share/novnc/emblem.svg
 
 # Start Xvfb (virtual X server) as root.

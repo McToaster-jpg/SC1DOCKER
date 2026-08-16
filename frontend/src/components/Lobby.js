@@ -2,12 +2,28 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TerranEmblem, ProtossEmblem, ZergEmblem } from './Emblems';
 
 const SESSIONS = [
-  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', port: 4001, statusPort: 4003 },
-  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', port: 4004, statusPort: 4006 },
-  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', port: 4007, statusPort: 4009 }
+  { id: 1, name: 'TERRAN', Emblem: TerranEmblem, accent: 'terran', slug: 'terran', port: 4001, statusPort: 4003 },
+  { id: 2, name: 'PROTOSS', Emblem: ProtossEmblem, accent: 'protoss', slug: 'protoss', port: 4004, statusPort: 4006 },
+  { id: 3, name: 'ZERG', Emblem: ZergEmblem, accent: 'zerg', slug: 'zerg', port: 4007, statusPort: 4009 }
 ];
 
 const POLL_INTERVAL_MS = 3000;
+
+// Set at build time (see frontend/Dockerfile). When present, the lobby
+// builds https://<race>.<domain> style URLs that a reverse proxy (e.g.
+// Nginx Proxy Manager, one proxy host per subdomain) can front with SSL -
+// required because a page loaded over HTTPS can't open plain ws:///http://
+// connections to other hosts/ports (mixed content). Left unset, everything
+// falls back to the LAN "same host, different port" scheme.
+const PUBLIC_DOMAIN = process.env.REACT_APP_PUBLIC_DOMAIN || '';
+
+function gameOrigin(slug) {
+  return PUBLIC_DOMAIN ? `https://${slug}.${PUBLIC_DOMAIN}` : null;
+}
+
+function statusOrigin(slug) {
+  return PUBLIC_DOMAIN ? `https://${slug}-status.${PUBLIC_DOMAIN}` : null;
+}
 
 export default function Lobby({ player, onLogout }) {
   const [connecting, setConnecting] = useState(null);
@@ -18,9 +34,8 @@ export default function Lobby({ player, onLogout }) {
     const results = await Promise.all(
       SESSIONS.map(async (session) => {
         try {
-          const res = await fetch(
-            `http://${window.location.hostname}:${session.statusPort}/status?t=${Date.now()}`
-          );
+          const base = statusOrigin(session.slug) || `http://${window.location.hostname}:${session.statusPort}`;
+          const res = await fetch(`${base}/status?t=${Date.now()}`);
           if (!res.ok) return [session.id, false];
           const data = await res.json();
           return [session.id, !!data.occupied];
@@ -46,7 +61,8 @@ export default function Lobby({ player, onLogout }) {
 
     setTimeout(() => {
       // Cache-bust: force a fresh navigation instead of a stale cached page
-      window.open(`http://${window.location.hostname}:${session.port}/?t=${Date.now()}`, '_blank');
+      const base = gameOrigin(session.slug) || `http://${window.location.hostname}:${session.port}`;
+      window.open(`${base}/?t=${Date.now()}`, '_blank');
       setConnecting(null);
     }, 1200);
   };

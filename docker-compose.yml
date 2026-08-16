@@ -6,6 +6,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - REACT_APP_PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     container_name: sc1-frontend
     ports:
       - "4000:3000"
@@ -36,6 +38,7 @@ services:
       - RACE_COLOR=#00b4ff
       - AUDIO_PORT=4002
       - STATUS_PORT=6081
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     volumes:
       - sc1_data_terran:/home/gamer/games/SC1
       - sc1_wine_terran:/home/gamer/.wine
@@ -60,6 +63,7 @@ services:
       - RACE_COLOR=#ffd700
       - AUDIO_PORT=4005
       - STATUS_PORT=6081
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     volumes:
       - sc1_data_protoss:/home/gamer/games/SC1
       - sc1_wine_protoss:/home/gamer/.wine
@@ -84,6 +88,7 @@ services:
       - RACE_COLOR=#a020f0
       - AUDIO_PORT=4008
       - STATUS_PORT=6081
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     volumes:
       - sc1_data_zerg:/home/gamer/games/SC1
       - sc1_wine_zerg:/home/gamer/.wine

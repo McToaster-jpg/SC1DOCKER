@@ -217,8 +217,19 @@
       // before playback catches up to the live edge.
       nextStartTime = audioCtx.currentTime + 0.2;
 
-      var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      audioSocket = new WebSocket(wsProto + '//' + window.location.hostname + ':${AUDIO_PORT}/');
+      // With a public domain configured, a reverse proxy fronts this on a
+      // dedicated subdomain over WSS (required: a page loaded over HTTPS
+      // can't open a plain ws:// connection - mixed content). Otherwise
+      // fall back to the LAN "same host, different port" scheme.
+      var publicDomain = '${PUBLIC_DOMAIN}';
+      var audioUrl;
+      if (publicDomain) {
+        audioUrl = 'wss://${RACE_LOWER}-audio.' + publicDomain + '/';
+      } else {
+        var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        audioUrl = wsProto + '//' + window.location.hostname + ':${AUDIO_PORT}/';
+      }
+      audioSocket = new WebSocket(audioUrl);
       audioSocket.binaryType = 'arraybuffer';
 
       audioSocket.onmessage = function (evt) {

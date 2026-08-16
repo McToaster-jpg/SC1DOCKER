@@ -63,22 +63,48 @@ All ten host ports live in the 4000 range:
 | Protoss video / audio / status | 4004 / 4005 / 4006 | noVNC stream, raw-PCM audio WebSocket, occupancy JSON |
 | Zerg video / audio / status | 4007 / 4008 / 4009 | noVNC stream, raw-PCM audio WebSocket, occupancy JSON |
 
-**Reverse proxy note:** every one of the game-server ports (video, audio,
-status) is HTTP-upgradable - noVNC and the audio stream are both plain
-WebSockets, and status is plain JSON - so all ten *can* go through an
-nginx-based proxy (e.g. Nginx Proxy Manager) with "Websockets Support"
-enabled. The catch: the frontend's JS builds every game/audio/status URL
-as "same hostname the page was loaded from, different port" - it never
-hardcodes an IP. That works two ways:
-- **LAN-only (simplest):** only proxy the frontend (4000) behind your
-  domain/SSL for convenient access; leave 4001-4009 as plain LAN ports
-  (or don't forward them past your router at all if this never leaves
-  the LAN). This is what the "same hostname" logic assumes by default.
-- **Fully remote-playable:** proxy all ten ports. Since a reverse proxy
-  fronts everything on 443 by hostname rather than by port number, this
-  needs one proxy host per port (subdomains work well - e.g.
-  `sc1.`, `terran.`, `terran-audio.`, `terran-status.`, etc.) rather
-  than a single domain with different ports in the URL.
+## Reverse proxy / public domain
+
+By default the lobby builds every game/audio/status URL as "same host the
+page loaded from, different port" - fine on a LAN, but it breaks once the
+frontend is served over HTTPS: browsers block a secure page from opening
+plain `ws://`/`http://` connections to other ports (mixed content), and a
+reverse proxy fronts things by *hostname* on 443, not by port number in
+the URL. So going through SSL/a domain needs subdomains, one per port,
+each proxied to this Docker host's LAN IP with **Websockets Support**
+enabled (video and audio are both WebSocket-based; status is plain JSON
+but the toggle doesn't hurt):
+
+| Proxy host | → Target port | Purpose |
+|---|---|---|
+| `<domain>` | 4000 | Frontend |
+| `terran.<domain>` | 4001 | Terran video |
+| `terran-audio.<domain>` | 4002 | Terran audio |
+| `terran-status.<domain>` | 4003 | Terran occupancy status |
+| `protoss.<domain>` | 4004 | Protoss video |
+| `protoss-audio.<domain>` | 4005 | Protoss audio |
+| `protoss-status.<domain>` | 4006 | Protoss occupancy status |
+| `zerg.<domain>` | 4007 | Zerg video |
+| `zerg-audio.<domain>` | 4008 | Zerg audio |
+| `zerg-status.<domain>` | 4009 | Zerg occupancy status |
+
+Then tell the app about the domain: copy `.env.example` to `.env`, set
+`PUBLIC_DOMAIN=yourdomain.com`, and rebuild:
+
+```bash
+cp .env.example .env
+# edit .env, set PUBLIC_DOMAIN
+docker-compose up -d --build
+```
+
+With `PUBLIC_DOMAIN` set, the lobby switches to `https://terran.yourdomain.com`
+style URLs (baked into the frontend at build time) and each game session's
+audio switches to `wss://terran-audio.yourdomain.com` instead of the LAN
+scheme. The video stream (noVNC) needs no special handling - its
+WebSocket connection is same-origin relative to whatever page loaded it,
+so it automatically follows the proxy correctly.
+
+Leave `PUBLIC_DOMAIN` unset for LAN-only play - nothing else changes.
 
 ## Persistence
 

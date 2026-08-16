@@ -12,6 +12,13 @@ RUN npm install
 # Copy source
 COPY . .
 
+# Public domain for remote/SSL play (e.g. "example.com"). When set, the
+# lobby builds https://<race>.<domain> etc URLs instead of assuming the
+# LAN "same host, different port" scheme. Baked in at build time since
+# Create React App inlines REACT_APP_* vars into the static bundle.
+ARG REACT_APP_PUBLIC_DOMAIN=""
+ENV REACT_APP_PUBLIC_DOMAIN=$REACT_APP_PUBLIC_DOMAIN
+
 # Build React app
 RUN npm run build
 
