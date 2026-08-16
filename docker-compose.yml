@@ -88,6 +88,9 @@ services:
       - "6122:6080"
     environment:
       - DISPLAY=:99
+      - RACE_NAME=TERRAN
+      - RACE_ICON=🦅
+      - RACE_COLOR=#00b4ff
     networks:
       - sc1-network
     restart: unless-stopped
@@ -103,6 +106,9 @@ services:
       - "6223:6080"
     environment:
       - DISPLAY=:99
+      - RACE_NAME=PROTOSS
+      - RACE_ICON=⚡
+      - RACE_COLOR=#ffd700
     networks:
       - sc1-network
     restart: unless-stopped
@@ -118,6 +124,9 @@ services:
       - "6324:6080"
     environment:
       - DISPLAY=:99
+      - RACE_NAME=ZERG
+      - RACE_ICON=🐛
+      - RACE_COLOR=#a020f0
     networks:
       - sc1-network
     restart: unless-stopped

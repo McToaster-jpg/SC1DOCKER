@@ -15,6 +15,12 @@ sleep 1
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
+# Render the themed noVNC landing page for this race
+echo "Rendering ${RACE_NAME:-TERRAN} branded page..."
+envsubst '${RACE_NAME} ${RACE_ICON} ${RACE_COLOR}' \
+    < /usr/share/novnc/index.html.template \
+    > /usr/share/novnc/index.html
+
 # Start Xvfb (virtual X server) as root
 echo "Starting Xvfb on display :99..."
 Xvfb :99 -screen 0 1024x768x24 -ac &

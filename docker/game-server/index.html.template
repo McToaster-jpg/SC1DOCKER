@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StarCraft — ${RACE_NAME}</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #05070a;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+  }
+
+  .topbar {
+    height: 48px;
+    background: linear-gradient(180deg, #0b1210 0%, #060908 100%);
+    border-bottom: 2px solid ${RACE_COLOR};
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-shadow: 0 0 12px ${RACE_COLOR}55;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand .icon {
+    font-size: 22px;
+    filter: drop-shadow(0 0 6px ${RACE_COLOR});
+  }
+
+  .brand .title {
+    color: ${RACE_COLOR};
+    font-weight: bold;
+    letter-spacing: 3px;
+    font-size: 16px;
+    text-shadow: 0 0 8px ${RACE_COLOR}aa;
+  }
+
+  .brand .subtitle {
+    color: #6c7a75;
+    font-size: 11px;
+    letter-spacing: 2px;
+    margin-left: 8px;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: ${RACE_COLOR};
+    box-shadow: 0 0 8px ${RACE_COLOR};
+    animation: pulse 2s infinite ease-in-out;
+  }
+
+  .status .label {
+    color: #9fb0aa;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .back-link {
+    color: ${RACE_COLOR};
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 1px;
+    border: 1px solid ${RACE_COLOR}66;
+    padding: 6px 12px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+  }
+
+  .back-link:hover {
+    background: ${RACE_COLOR}22;
+    box-shadow: 0 0 10px ${RACE_COLOR}66;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  .screen {
+    height: calc(100% - 48px);
+    width: 100%;
+    background: #000;
+  }
+
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <span class="icon">${RACE_ICON}</span>
+      <span class="title">${RACE_NAME}</span>
+      <span class="subtitle">STARCRAFT · BROOD WAR</span>
+    </div>
+    <div class="status">
+      <div class="dot"></div>
+      <span class="label">LIVE</span>
+      <a class="back-link" href="#" onclick="window.close(); return false;">✕ DISCONNECT</a>
+    </div>
+  </div>
+  <div class="screen">
+    <iframe src="vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=6&compression=2"></iframe>
+  </div>
+</body>
+</html>

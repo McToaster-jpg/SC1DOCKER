@@ -14,6 +14,7 @@ RUN dpkg --add-architecture i386 && \
     x11vnc \
     novnc \
     websockify \
+    gettext-base \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -21,15 +22,19 @@ RUN dpkg --add-architecture i386 && \
 # Create game user
 RUN useradd -m -u 1000 gamer
 
-# noVNC has no index.html by default, so websockify serves a directory listing.
-# Symlink vnc.html as index.html so the noVNC root loads the viewer automatically.
-RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+# Custom themed index page (rendered per-race at container start via envsubst)
+COPY docker/game-server/index.html.template /usr/share/novnc/index.html.template
 
 # Set up VNC and display
 ENV DISPLAY=:99
 ENV WINE_CPU_TOPOLOGY=4:2
 ENV WINEARCH=win32
 ENV WINEPREFIX=/home/gamer/.wine
+
+# Race branding (overridden per game-server in docker-compose)
+ENV RACE_NAME=TERRAN
+ENV RACE_ICON=🦅
+ENV RACE_COLOR=#ff6b35
 
 # Create directories and X11 socket directory (owned by root)
 RUN mkdir -p /home/gamer/games && chown -R gamer:gamer /home/gamer && \
