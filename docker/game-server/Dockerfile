@@ -33,12 +33,18 @@ RUN dpkg --add-architecture i386 && \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Selkies (low-latency browser streaming server) straight from PyPI.
-# The GitHub release asset naming (selkies_gstreamer-X.Y.Z-*.whl) doesn't
-# match the plain "selkies" package name, and its tags can lag behind
-# what's actually published to PyPI, so pip resolving it directly is the
-# more reliable path.
-RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --no-cache-dir selkies
+# Install Selkies from the GitHub main branch source, not PyPI.
+# PyPI's published "selkies" package (1.6.1) is still the old
+# selkies-gstreamer codebase (module selkies_gstreamer, command
+# selkies-gstreamer, requires the full GStreamer/WebRTC/ICE stack).
+# The newer rewrite this Dockerfile is built around - websockets-first
+# transport, the pixelflux/pcmflux capture extensions, --run-after-disconnect
+# hook, `selkies` command name - only exists as unreleased source on main.
+# Both native extensions ship prebuilt cp310-manylinux_x86_64 wheels, so
+# this doesn't need a Rust toolchain, and the build is plain setuptools
+# (no git-history version resolution), so a plain tarball install works.
+RUN PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --no-cache-dir \
+    https://github.com/selkies-project/selkies/archive/refs/heads/main.tar.gz
 
 # Create game user
 RUN useradd -m -u 1000 gamer
