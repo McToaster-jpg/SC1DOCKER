@@ -8,13 +8,9 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('token');
-    const playerId = localStorage.getItem('playerId');
     const username = localStorage.getItem('username');
-
-    if (token && playerId && username) {
-      setPlayer({ playerId, username });
+    if (username) {
+      setPlayer({ username });
     }
     setLoading(false);
   }, []);
@@ -24,8 +20,6 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('playerId');
     localStorage.removeItem('username');
     setPlayer(null);
   };

@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../api';
 
 export default function LoginPage({ onLogin }) {
-  const [playerId, setPlayerId] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -14,17 +12,14 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
 
     try {
-      if (!playerId.trim() || !username.trim() || !password.trim()) {
-        setError('All fields required');
+      if (!username.trim()) {
+        setError('Enter a player name');
         setLoading(false);
         return;
       }
 
-      const { token } = await api.login(playerId, username, password);
-      localStorage.setItem('token', token);
-      localStorage.setItem('playerId', playerId);
       localStorage.setItem('username', username);
-      onLogin({ playerId, username });
+      onLogin({ username });
     } catch (err) {
       setError(err.message || 'Login failed');
     } finally {
@@ -43,33 +38,14 @@ export default function LoginPage({ onLogin }) {
 
         <form onSubmit={handleLogin}>
           <div className="form-group">
-            <label>PLAYER ID</label>
+            <label>PLAYER NAME</label>
             <input
               type="text"
-              placeholder="Enter your ID"
-              value={playerId}
-              onChange={(e) => setPlayerId(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-          <div className="form-group">
-            <label>USERNAME</label>
-            <input
-              type="text"
-              placeholder="Your name"
+              placeholder="Enter your name"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
-            />
-          </div>
-          <div className="form-group">
-            <label>PASSWORD</label>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
+              autoFocus
             />
           </div>
           <button type="submit" className="login-button" disabled={loading}>
