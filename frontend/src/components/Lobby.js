@@ -16,7 +16,8 @@ export default function Lobby({ player, onLogout }) {
     setConnecting(session.id);
 
     setTimeout(() => {
-      window.open(`http://${window.location.hostname}:${session.port}`, '_blank');
+      // Cache-bust: force a fresh navigation instead of a stale cached page
+      window.open(`http://${window.location.hostname}:${session.port}/?t=${Date.now()}`, '_blank');
       setConnecting(null);
     }, 1200);
   };
