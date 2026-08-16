@@ -21,8 +21,10 @@ Browser
 
 There's no login, database, or orchestrator API - just a name (stored in
 the browser) and three fixed, always-on game sessions. Each game server
-is its own container; disconnecting a session automatically recycles that
-container so the next player gets a fresh instance.
+container stays up continuously (streaming stack, audio, status endpoint),
+but StarCraft itself only launches when a player actually connects and
+gets stopped the moment they disconnect - an idle session costs next to
+no CPU, and joining after idle takes a few seconds while Wine cold-starts.
 
 ## Prerequisites
 

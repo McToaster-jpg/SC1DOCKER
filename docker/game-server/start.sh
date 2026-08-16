@@ -35,7 +35,6 @@ cp "/usr/share/novnc/emblems/${RACE_LOWER}.svg" /usr/share/novnc/emblem.svg
 # which produced a black canvas. Instead we crop the VNC capture below.
 echo "Starting Xvfb on display :99..."
 Xvfb :99 -screen 0 1024x768x24 -ac &
-XVFB_PID=$!
 sleep 3
 
 # Start noVNC web interface (proxies to x11vnc once it's listening)
@@ -57,12 +56,30 @@ su - gamer -c "pactl set-default-sink virtual_speaker" 2>&1 || true
 echo "Starting audio stream on port 8000..."
 su - gamer -c "ffmpeg -f pulse -i virtual_speaker.monitor -acodec libmp3lame -b:a 128k -f mp3 -listen 1 http://0.0.0.0:8000/audio" \
     > /tmp/ffmpeg-audio.log 2>&1 &
-FFMPEG_PID=$!
 
-# Find the SC1 executable
-echo "Starting StarCraft 1..."
+# x11vnc now stays up for the container's whole lifetime (-forever) instead
+# of exiting after the first disconnect. StarCraft itself - not the whole
+# container - is what cycles on join/leave now, so there's no need to
+# recycle the streaming stack on every session anymore.
+# Perf tuning for LAN play (plenty of CPU cores, bandwidth is free):
+#   -wait 10    poll every 10ms instead of the ~20-30ms default, raising
+#               the achievable frame rate ceiling
+#   -threads    use multiple threads for screen scanning/compression
+#   -defer 10   flush updates to the client after 10ms instead of batching
+#               longer, trading a little bandwidth for lower input latency
+echo "Starting x11vnc..."
+x11vnc -display :99 -clip 640x480+0+0 -nopw -listen localhost -rfbport 5900 \
+    -wait 10 -threads -defer 10 -forever &
+
+echo "noVNC available at http://localhost:6080"
+
+# Serve occupancy status on port 6081, polled by the lobby so it can show
+# real 0/1 vs 1/1 counts and grey out Start Game for sessions in use.
+echo "Starting status server on port ${STATUS_PORT:-6081}..."
+STATUS_PORT="${STATUS_PORT:-6081}" python3 /status_server.py &
+
+# Find the SC1 executable once - start/stop cycles below just reuse this.
 cd /home/gamer/games/SC1
-
 STARCRAFT_EXE=$(find . -name "*.exe" -type f | head -1)
 
 if [ -z "$STARCRAFT_EXE" ]; then
@@ -72,57 +89,40 @@ fi
 
 echo "Found executable: $STARCRAFT_EXE"
 
-# Run StarCraft with Wine as gamer user with explicit display and wine settings
-su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
-SC_PID=$!
+# Lazy start/stop loop: an established TCP connection to x11vnc's port
+# means a browser client is actively connected via the noVNC websocket
+# bridge. StarCraft only actually runs while someone's connected - an
+# idle session costs next to nothing instead of burning CPU on the menu
+# screen animation with nobody watching.
+GAME_RUNNING=0
+SC_PID=""
+echo "Idle - waiting for a player to connect..."
 
-echo "StarCraft 1 started with PID $SC_PID"
+while true; do
+    if ss -tn state established '( sport = :5900 )' 2>/dev/null | tail -n +2 | grep -q .; then
+        CONNECTED=1
+    else
+        CONNECTED=0
+    fi
 
-# Start x11vnc in the foreground, cropped to StarCraft's actual 640x480
-# render area so there's no dead black space in the VNC canvas.
-# x11vnc exits by default once its first client disconnects (no -forever),
-# which we use below to recycle the whole container for the next player.
-# Perf tuning for LAN play (plenty of CPU cores, bandwidth is free):
-#   -wait 10    poll every 10ms instead of the ~20-30ms default, raising
-#               the achievable frame rate ceiling
-#   -threads    use multiple threads for screen scanning/compression
-#   -defer 10   flush updates to the client after 10ms instead of batching
-#               longer, trading a little bandwidth for lower input latency
-echo "Starting x11vnc..."
-x11vnc -display :99 -clip 640x480+0+0 -nopw -listen localhost -rfbport 5900 \
-    -wait 10 -threads -defer 10 &
-X11VNC_PID=$!
+    if [ "$CONNECTED" = "1" ] && [ "$GAME_RUNNING" = "0" ]; then
+        echo "Player connected - starting StarCraft 1..."
+        touch /tmp/occupied
+        su - gamer -c "DISPLAY=:99 WINEARCH=win32 WINEPREFIX=/home/gamer/.wine wine '/home/gamer/games/SC1/$STARCRAFT_EXE'" &
+        SC_PID=$!
+        GAME_RUNNING=1
+    elif [ "$CONNECTED" = "0" ] && [ "$GAME_RUNNING" = "1" ]; then
+        echo "Player disconnected - stopping StarCraft 1, back to idle..."
+        rm -f /tmp/occupied
+        kill -9 "$SC_PID" 2>/dev/null || true
+        su - gamer -c "WINEPREFIX=/home/gamer/.wine wineserver -k" 2>/dev/null || true
+        wait "$SC_PID" 2>/dev/null || true
+        SC_PID=""
+        GAME_RUNNING=0
+        echo "Idle - waiting for a player to connect..."
+    elif [ "$CONNECTED" = "1" ]; then
+        touch /tmp/occupied
+    fi
 
-echo "VNC available at :99 (port 5900), cropped to 640x480"
-echo "noVNC available at http://localhost:6080"
-
-# Serve occupancy status on port 6081, polled by the lobby so it can show
-# real 0/1 vs 1/1 counts and grey out Start Game for sessions in use.
-echo "Starting status server on port ${STATUS_PORT:-6081}..."
-STATUS_PORT="${STATUS_PORT:-6081}" python3 /status_server.py &
-STATUS_SERVER_PID=$!
-
-# Background poller: an established TCP connection to x11vnc's port means
-# a browser client is actively connected via the noVNC websocket bridge.
-(
-    while true; do
-        if ss -tn state established '( sport = :5900 )' 2>/dev/null | tail -n +2 | grep -q .; then
-            touch /tmp/occupied
-        else
-            rm -f /tmp/occupied
-        fi
-        sleep 2
-    done
-) &
-STATUS_LOOP_PID=$!
-
-# Block here until the player disconnects (or never connects, in which
-# case this just waits). When x11vnc exits, tear everything down and
-# exit so Docker's restart policy relaunches the container fresh.
-wait $X11VNC_PID
-
-echo "Player disconnected - recycling container for a fresh session..."
-kill -9 "$SC_PID" "$XVFB_PID" "$FFMPEG_PID" "$STATUS_SERVER_PID" "$STATUS_LOOP_PID" 2>/dev/null || true
-pkill -9 websockify 2>/dev/null || true
-pkill -9 pulseaudio 2>/dev/null || true
-exit 0
+    sleep 2
+done
