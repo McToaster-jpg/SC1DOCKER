@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sc1-postgres
+    environment:
+      - POSTGRES_DB=sc1_games
+      - POSTGRES_USER=sc1_user
+      - POSTGRES_PASSWORD=sc1_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sc1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sc1_user -d sc1_games"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # Main orchestrator/API server that manages game instances
+  game-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sc1-orchestrator
+    ports:
+      - "5121:5121"
+    environment:
+      - NODE_ENV=production
+      - PORT=5121
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=sc1_games
+      - DB_USER=sc1_user
+      - DB_PASSWORD=sc1_password
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/app/config:ro
+    networks:
+      - sc1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5121/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Game server image (built but not run - spawned dynamically by orchestrator)
+  game-server:
+    build:
+      context: .
+      dockerfile: docker/game-server/Dockerfile
+    image: sc1-game-server:latest
+    container_name: sc1-game-server-build  # Build target only
+    profiles:
+      - build  # Use: docker-compose --profile build build
+
+networks:
+  sc1-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+ssl/
+.env*
+docker-compose.override.yml
