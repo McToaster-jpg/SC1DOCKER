@@ -23,6 +23,27 @@ services:
       timeout: 5s
       retries: 5
   # Main orchestrator/API server that manages game instances
+  # Frontend Web UI
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sc1-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - game-orchestrator
+    networks:
+      - sc1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Game Orchestrator API
   game-orchestrator:
     build:
       context: .
@@ -56,15 +77,51 @@ services:
       retries: 3
       start_period: 10s
 
-  # Game server image (built but not run - spawned dynamically by orchestrator)
-  game-server:
+  # Game Server Instance 1 - Terran
+  game-server-1:
     build:
       context: .
       dockerfile: docker/game-server/Dockerfile
     image: sc1-game-server:latest
-    container_name: sc1-game-server-build  # Build target only
-    profiles:
-      - build  # Use: docker-compose --profile build build
+    container_name: sc1-game-terran
+    ports:
+      - "6122:6080"
+    environment:
+      - DISPLAY=:99
+    networks:
+      - sc1-network
+    restart: unless-stopped
+
+  # Game Server Instance 2 - Protoss
+  game-server-2:
+    build:
+      context: .
+      dockerfile: docker/game-server/Dockerfile
+    image: sc1-game-server:latest
+    container_name: sc1-game-protoss
+    ports:
+      - "6223:6080"
+    environment:
+      - DISPLAY=:99
+    networks:
+      - sc1-network
+    restart: unless-stopped
+
+  # Game Server Instance 3 - Zerg
+  game-server-3:
+    build:
+      context: .
+      dockerfile: docker/game-server/Dockerfile
+    image: sc1-game-server:latest
+    container_name: sc1-game-zerg
+    ports:
+      - "6324:6080"
+    environment:
+      - DISPLAY=:99
+    networks:
+      - sc1-network
+    restart: unless-stopped
+
 
 networks:
   sc1-network:
