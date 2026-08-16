@@ -27,10 +27,13 @@ services:
     image: sc1-game-server:latest
     container_name: sc1-game-terran
     ports:
-      - "6122:8080"
+      - "6122:6080"
+      - "8081:8000"
     environment:
       - DISPLAY=:99
       - RACE_NAME=TERRAN
+      - RACE_COLOR=#00b4ff
+      - AUDIO_PORT=8081
     networks:
       - sc1-network
     restart: unless-stopped
@@ -43,10 +46,13 @@ services:
     image: sc1-game-server:latest
     container_name: sc1-game-protoss
     ports:
-      - "6223:8080"
+      - "6223:6080"
+      - "8082:8000"
     environment:
       - DISPLAY=:99
       - RACE_NAME=PROTOSS
+      - RACE_COLOR=#ffd700
+      - AUDIO_PORT=8082
     networks:
       - sc1-network
     restart: unless-stopped
@@ -59,10 +65,13 @@ services:
     image: sc1-game-server:latest
     container_name: sc1-game-zerg
     ports:
-      - "6324:8080"
+      - "6324:6080"
+      - "8083:8000"
     environment:
       - DISPLAY=:99
       - RACE_NAME=ZERG
+      - RACE_COLOR=#a020f0
+      - AUDIO_PORT=8083
     networks:
       - sc1-network
     restart: unless-stopped
