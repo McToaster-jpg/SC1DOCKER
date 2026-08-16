@@ -11,7 +11,7 @@ RUN dpkg --add-architecture i386 && \
     wine \
     wine32 \
     xvfb \
-    tightvncserver \
+    x11vnc \
     novnc \
     websockify \
     curl \

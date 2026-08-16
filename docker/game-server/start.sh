@@ -3,10 +3,12 @@
 set -e
 
 # Root-level setup (cleanup and prepare X11)
-echo "Cleaning up stale X11 locks..."
+echo "Cleaning up stale X11 locks and processes..."
 rm -f /tmp/.X99-lock 2>/dev/null || true
-pkill -f Xvfb 2>/dev/null || true
-pkill -f vncserver 2>/dev/null || true
+rm -f /tmp/.X11-unix/X99 2>/dev/null || true
+pkill -9 Xvfb 2>/dev/null || true
+pkill -9 x11vnc 2>/dev/null || true
+pkill -9 websockify 2>/dev/null || true
 sleep 1
 
 # Ensure X11 socket directory exists with correct permissions
@@ -14,27 +16,19 @@ mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
 # Start Xvfb (virtual X server) as root
-echo "Starting Xvfb..."
+echo "Starting Xvfb on display :99..."
 Xvfb :99 -screen 0 1024x768x24 -ac &
 XVFB_PID=$!
 sleep 3
 
-# Create VNC directory as root with proper permissions for gamer
-mkdir -p /home/gamer/.vnc
-chown gamer:gamer /home/gamer/.vnc
-chmod 700 /home/gamer/.vnc
+# Start x11vnc to stream the Xvfb display (no password for local streaming)
+echo "Starting x11vnc..."
+x11vnc -display :99 -nopw -listen localhost -rfbport 5900 -bg 2>&1 || true
+sleep 2
 
-# Create VNC password file as gamer user
-echo "starcraft1" | su - gamer -c "vncpasswd -f > ~/.vnc/passwd && chmod 600 ~/.vnc/passwd"
-
-# Start VNC server with explicit DISPLAY
-echo "Starting VNC server..."
-su - gamer -c "DISPLAY=:99 vncserver :99 -geometry 1024x768 -depth 24 -passwordfile ~/.vnc/passwd" 2>&1 || true
-sleep 3
-
-# Start noVNC (web VNC)
+# Start noVNC web interface pointing to x11vnc
 echo "Starting noVNC..."
-websockify -D --web=/usr/share/novnc/ 6080 localhost:5900 2>/dev/null &
+websockify -D --web=/usr/share/novnc/ 6080 localhost:5900 2>&1 || true
 sleep 2
 
 # Find the SC1 executable
